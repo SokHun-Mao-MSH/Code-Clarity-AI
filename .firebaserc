@@ -5,14 +5,6 @@
     "y": "clarity-cddb8",
     "public": "clarity-cddb8"
   },
-  "targets": {
-    "clarity-cddb8": {
-      "hosting": {
-        "claritybyai": [
-          "clarity-by-ai"
-        ]
-      }
-    }
-  },
+  "targets": {},
   "etags": {}
 }

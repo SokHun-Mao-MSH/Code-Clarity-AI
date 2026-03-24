@@ -1036,6 +1036,7 @@ export default function App() {
                             code({ node, className, children, ...props }) {
                               const match = /language-(\w+)/.exec(className || '');
                               const codeValue = String(children).replace(/\n$/, '');
+                              const hasKhmerCode = /[\u1780-\u17FF]/.test(codeValue);
                               
                               return match ? (
                                 <div className="my-4 md:my-6 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-md bg-white dark:bg-[#0d0d12] group">
@@ -1078,8 +1079,13 @@ export default function App() {
                                         fontSize: window.innerWidth < 768 ? '0.85rem' : '0.9rem',
                                         lineHeight: '1.6',
                                         background: 'transparent',
-                                        wordBreak: 'break-all',
-                                        whiteSpace: 'pre-wrap'
+                                        // Avoid splitting Khmer glyph clusters (sra/leg) in long lines.
+                                        wordBreak: 'normal',
+                                        overflowWrap: 'anywhere',
+                                        whiteSpace: 'pre-wrap',
+                                        fontFamily: hasKhmerCode
+                                          ? '"Khmer OS Siemreap", "Siemreap", "Noto Sans Khmer", "JetBrains Mono", monospace'
+                                          : '"JetBrains Mono", ui-monospace, SFMono-Regular, monospace'
                                       }}
                                     >
                                       {codeValue}

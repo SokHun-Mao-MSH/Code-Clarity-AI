@@ -79,6 +79,13 @@
     line-height: 1.95;
     letter-spacing: 0;
   }
+
+  /* Keep Khmer glyph shaping stable inside markdown/code output. */
+  .khmer-text code,
+  .khmer-text pre {
+    font-family: "Khmer OS Siemreap", "Siemreap", "Noto Sans Khmer", "JetBrains Mono", monospace;
+    line-height: 1.9;
+  }
 }
 
 @keyframes shimmer {
