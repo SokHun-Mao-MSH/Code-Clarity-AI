@@ -12,4 +12,4 @@ services:
       - key: GEMINI_MODEL
         value: gemini-3-flash-preview
       - key: CORS_ORIGINS
-        value: https://clarity-cddb8.web.app,https://clarity-cddb8.firebaseapp.com
+        value: https://clarity-cddb8.web.app,https://clarity-cddb8.firebaseapp.com,https://clarity-by-ai.web.app,https://clarity-by-ai.firebaseapp.com
