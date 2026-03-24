@@ -4,24 +4,54 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 
+const sanitizeOrigin = (value: string) => {
+  const raw = value.trim().replace(/^['"]|['"]$/g, "").replace(/\/+$/, "");
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+  } catch {
+    return raw.toLowerCase();
+  }
+};
+
+const firebaseOriginVariants = (origin: string) => {
+  const lower = origin.toLowerCase();
+  if (lower.includes(".web.app")) {
+    return [lower, lower.replace(".web.app", ".firebaseapp.com")];
+  }
+  if (lower.includes(".firebaseapp.com")) {
+    return [lower, lower.replace(".firebaseapp.com", ".web.app")];
+  }
+  return [lower];
+};
+
 // Initializing the SDK at start-up with a safety check
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
   const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
   const CORS_ORIGINS = process.env.CORS_ORIGINS || "*";
+  const allowAllOrigins = CORS_ORIGINS.trim() === "*";
+  const allowedOrigins = new Set(
+    CORS_ORIGINS.split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => sanitizeOrigin(item)),
+  );
 
   // Allow cross-origin requests
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || CORS_ORIGINS === "*") {
+        if (!origin || allowAllOrigins) {
           callback(null, true);
           return;
         }
 
-        const allowList = CORS_ORIGINS.split(",").map((item) => item.trim());
-        callback(null, allowList.includes(origin));
+        const normalizedOrigin = sanitizeOrigin(origin);
+        const candidates = firebaseOriginVariants(normalizedOrigin);
+        const isAllowed = candidates.some((candidate) => allowedOrigins.has(candidate));
+        callback(null, isAllowed);
       },
     }),
   );
@@ -117,6 +147,7 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Gemini model: ${GEMINI_MODEL}`);
+    console.log(`CORS origins: ${allowAllOrigins ? "*" : Array.from(allowedOrigins).join(", ")}`);
   });
 }
 
