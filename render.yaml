@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: code-clarity-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3-flash-preview
+      - key: CORS_ORIGINS
+        value: https://clarity-cddb8.web.app,https://clarity-cddb8.firebaseapp.com

@@ -1,0 +1,10 @@
+{
+  "projects": {
+    "default": "clarity-cddb8",
+    "clarity_ai": "clarity-cddb8",
+    "y": "clarity-cddb8",
+    "public": "clarity-cddb8"
+  },
+  "targets": {},
+  "etags": {}
+}
