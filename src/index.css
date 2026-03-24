@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Noto+Sans+Khmer:wght@100..900&family=Siemreap&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Kantumruy+Pro:wght@100..700&family=Noto+Sans+Khmer:wght@100..900&family=Siemreap&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", "Khmer OS Siemreap", "Siemreap", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", "Kantumruy Pro", "Noto Sans Khmer", "Khmer OS Siemreap", "Siemreap", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   --color-brand: #10b981;
@@ -75,16 +75,49 @@
   }
 
   .khmer-text {
-    font-family: "Khmer OS Siemreap", "Siemreap", "Noto Sans Khmer", "Khmer OS Battambang", sans-serif;
-    line-height: 1.95;
+    font-family: "Kantumruy Pro", "Noto Sans Khmer", "Khmer OS Siemreap", "Siemreap", "Khmer OS Battambang", sans-serif;
+    line-height: 2;
     letter-spacing: 0;
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
   }
 
   /* Keep Khmer glyph shaping stable inside markdown/code output. */
   .khmer-text code,
   .khmer-text pre {
-    font-family: "Khmer OS Siemreap", "Siemreap", "Noto Sans Khmer", "JetBrains Mono", monospace;
+    font-family: "Kantumruy Pro", "Noto Sans Khmer", "Khmer OS Siemreap", "Siemreap", "JetBrains Mono", monospace;
     line-height: 1.9;
+    font-size: inherit;
+  }
+
+  /* Reduce mixed-weight jumps for Khmer output in prose markdown blocks. */
+  .khmer-prose :where(p, li, ul, ol, blockquote, strong, em, h1, h2, h3, h4) {
+    font-family: "Kantumruy Pro", "Noto Sans Khmer", "Khmer OS Siemreap", "Siemreap", "Khmer OS Battambang", sans-serif !important;
+    letter-spacing: 0 !important;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    line-height: 2;
+    font-size: inherit !important;
+  }
+
+  .khmer-prose :where(strong, b) {
+    font-weight: 600 !important;
+  }
+
+  .khmer-prose :where(p, li) {
+    font-weight: 400 !important;
+  }
+
+  /* Khmer headings: avoid extra-heavy weight that causes visual baseline jumping. */
+  .khmer-prose :where(h1, h2, h3, h4) {
+    font-weight: 600 !important;
+    line-height: 1.85 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .khmer-prose :where(h1 strong, h2 strong, h3 strong, h4 strong) {
+    font-weight: 600 !important;
   }
 }
 

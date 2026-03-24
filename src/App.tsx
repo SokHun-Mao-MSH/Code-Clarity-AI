@@ -8,7 +8,6 @@ import {
   Plus,
   History,
   Layout,
-  FileCode,
   Trash2,
   Menu,
   X,
@@ -26,7 +25,11 @@ import {
   Globe2,
   Settings2,
   Trash,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Eye,
+  Download,
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, ensureDate } from "./utils";
@@ -43,10 +46,20 @@ import Header from "./components/Header";
 import Hero from "./components/Hero";
 import Features from "./components/Features";
 
-const LANGUAGES = [
-  'javascript', 'typescript', 'python', 'java', 'html', 'css', 
-  'php', 'laravel', 'c#', 'cpp', 'c', 'mysql', 'sql', 'dart', 'kotlin', 'swift', 'flutter', 'react', 'react native', 'vue', 'angular', 'go', 'rust', 'json'
+const CORE_LANGUAGES = [
+  'javascript', 'typescript', 'python', 'java', 'php', 'c#', 'cpp', 'c', 'sql', 'dart', 'kotlin', 'swift', 'go', 'rust', 'html', 'css', 'json',
 ];
+
+const FRAMEWORK_TAGS = [
+  'react', 'react native', 'vue', 'angular', 'flutter', 'laravel',
+];
+
+const PLATFORM_TAGS = [
+  'mysql',
+];
+
+// Keep dropdown behavior unchanged while making support categories explicit in UI.
+const LANGUAGES = [...CORE_LANGUAGES, ...FRAMEWORK_TAGS, ...PLATFORM_TAGS];
 
 const OUTPUT_LANGUAGES = [
   'English', 'Khmer'
@@ -84,6 +97,20 @@ const MAX_IMAGE_DIMENSION = 1600;
 const MAX_IMAGE_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 const MAX_IMAGE_BASE64_LENGTH = 8_500_000;
 const SUPPORTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+const MAX_UPLOAD_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const SUPPORTED_FILE_EXTENSIONS = ['pdf', 'doc', 'docx', 'json', 'zip', '7z'];
+const FILE_UPLOAD_ACCEPT = 'image/*,.pdf,.doc,.docx,.json,.zip,.7z';
+
+interface UploadedAsset {
+  name: string;
+  mimeType: string;
+  extension: string;
+  size: number;
+  objectUrl: string;
+  kind: 'image' | 'file';
+  canInlinePreview: boolean;
+  textPreview?: string;
+}
 
 const LANGUAGE_NORMALIZATION: Record<string, string> = {
   'c#': 'csharp',
@@ -253,6 +280,8 @@ export default function App() {
   });
 
   const [explanationResult, setExplanationResult] = useState('');
+  const [lastInputLanguage, setLastInputLanguage] = useState(() => localStorage.getItem('defaultLang') || 'javascript');
+  const [isAutoDetectedLanguage, setIsAutoDetectedLanguage] = useState(false);
   const [projectName, setProjectName] = useState('Untitled Snippet');
   const [loading, setLoading] = useState(false);
   const [actionStep, setActionStep] = useState<string>('');
@@ -261,6 +290,8 @@ export default function App() {
   
   // Vision States
   const [selectedImage, setSelectedImage] = useState<{ data: string; mimeType: string } | null>(null);
+  const [uploadedAsset, setUploadedAsset] = useState<UploadedAsset | null>(null);
+  const [isUploadViewerOpen, setIsUploadViewerOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [imageUploadError, setImageUploadError] = useState('');
   
@@ -333,15 +364,19 @@ export default function App() {
     const detectedLanguage = detectCodeLanguage(inputCode);
     const normalizedSelectedLanguage = normalizeLanguage(language);
     let requestLanguage = language;
+    let autoDetectedLanguageApplied = false;
 
     if (detectedLanguage && detectedLanguage !== normalizedSelectedLanguage) {
       const correctedOption = LANGUAGE_OPTION_FROM_DETECTED[detectedLanguage];
       if (correctedOption && correctedOption !== language) {
         setLanguage(correctedOption);
         requestLanguage = correctedOption;
+        autoDetectedLanguageApplied = true;
         setActionStep(`Detected ${correctedOption.toUpperCase()} from code, language updated automatically.`);
       }
     }
+    setLastInputLanguage(requestLanguage);
+    setIsAutoDetectedLanguage(autoDetectedLanguageApplied);
 
     setLoading(true);
     
@@ -473,7 +508,10 @@ export default function App() {
     setProjectName(project.name);
     setInputCode(project.description || ''); 
     setExplanationResult(project.generatedCode || '');
-    setLanguage(project.language || localStorage.getItem('defaultLang') || 'javascript');
+    const selectedLanguage = project.language || localStorage.getItem('defaultLang') || 'javascript';
+    setLanguage(selectedLanguage);
+    setLastInputLanguage(selectedLanguage);
+    setIsAutoDetectedLanguage(false);
     setOutputLanguage(project.outputLanguage || localStorage.getItem('defaultOutLang') || 'English');
     setMainView('project');
   };
@@ -483,6 +521,8 @@ export default function App() {
     setProjectName('New Snippet');
     setInputCode('');
     setExplanationResult('');
+    setLastInputLanguage(language);
+    setIsAutoDetectedLanguage(false);
     setMainView('project');
   };
 
@@ -506,6 +546,26 @@ export default function App() {
       reader.readAsDataURL(file);
     })
   );
+
+  const readAsText = (file: File): Promise<string> => (
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Failed to read file as text.'));
+      reader.readAsText(file);
+    })
+  );
+
+  const getFileExtension = (fileName: string): string => {
+    const segments = fileName.toLowerCase().split('.');
+    return segments.length > 1 ? segments.pop() || '' : '';
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const loadImage = (dataUrl: string): Promise<HTMLImageElement> => (
     new Promise((resolve, reject) => {
@@ -578,19 +638,65 @@ export default function App() {
     return processedImage;
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIncomingUpload = async (file: File) => {
+    const extension = getFileExtension(file.name);
+    const isImage = SUPPORTED_IMAGE_TYPES.includes(file.type);
+    const isSupportedFile = isImage || SUPPORTED_FILE_EXTENSIONS.includes(extension);
+
+    if (!isSupportedFile) {
+      throw new Error('Unsupported file type. Allowed: PNG, JPG, WEBP, PDF, DOC, DOCX, JSON, ZIP, 7Z.');
+    }
+
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      throw new Error('File is too large. Please upload a file smaller than 25MB.');
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    let textPreview = '';
+
+    if (extension === 'json') {
+      const rawText = await readAsText(file);
+      textPreview = rawText.length > 12000 ? `${rawText.slice(0, 12000)}\n\n... truncated for preview ...` : rawText;
+    }
+
+    if (isImage) {
+      const processedImage = await processImageFile(file);
+      setSelectedImage(processedImage);
+    } else {
+      setSelectedImage(null);
+    }
+
+    setUploadedAsset((prev) => {
+      if (prev) URL.revokeObjectURL(prev.objectUrl);
+      return {
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        extension,
+        size: file.size,
+        objectUrl,
+        kind: isImage ? 'image' : 'file',
+        canInlinePreview: isImage || extension === 'pdf' || extension === 'json',
+        textPreview,
+      };
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setImageUploadError('');
 
     try {
-      const processedImage = await processImageFile(file);
-      setSelectedImage(processedImage);
+      await handleIncomingUpload(file);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upload image.';
+      const message = error instanceof Error ? error.message : 'Failed to upload file.';
       setImageUploadError(message);
       setSelectedImage(null);
+      setUploadedAsset((prev) => {
+        if (prev) URL.revokeObjectURL(prev.objectUrl);
+        return null;
+      });
     } finally {
       // Allow selecting the same file again after an error.
       e.target.value = '';
@@ -606,12 +712,15 @@ export default function App() {
     setImageUploadError('');
 
     try {
-      const processedImage = await processImageFile(file);
-      setSelectedImage(processedImage);
+      await handleIncomingUpload(file);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to upload image.';
       setImageUploadError(message);
       setSelectedImage(null);
+      setUploadedAsset((prev) => {
+        if (prev) URL.revokeObjectURL(prev.objectUrl);
+        return null;
+      });
     }
   };
 
@@ -619,6 +728,14 @@ export default function App() {
     e.preventDefault();
     setIsDragging(true);
   };
+
+  useEffect(() => (
+    () => {
+      if (uploadedAsset) {
+        URL.revokeObjectURL(uploadedAsset.objectUrl);
+      }
+    }
+  ), [uploadedAsset]);
 
 
   const particlesOptions = useMemo(() => ({
@@ -727,7 +844,7 @@ export default function App() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden border-t border-zinc-200 dark:border-white/5 bg-white/95 dark:bg-black/95 backdrop-blur-2xl overflow-hidden fixed top-20 left-0 right-0 z-40"
+            className="md:hidden border-t border-zinc-200 dark:border-white/5 bg-white/95 dark:bg-black/95 backdrop-blur-2xl overflow-hidden fixed top-20 left-0 right-0 z-40"
           >
             <div className="px-4 py-6 space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -788,9 +905,18 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-12 py-2"
             >
-              <Hero setMainView={setMainView} />
+              <Hero
+                setMainView={setMainView}
+                coreLanguages={CORE_LANGUAGES}
+                frameworkTags={FRAMEWORK_TAGS}
+                platformTags={PLATFORM_TAGS}
+              />
 
-              <Features />
+              <Features
+                coreLanguages={CORE_LANGUAGES}
+                frameworkTags={FRAMEWORK_TAGS}
+                platformTags={PLATFORM_TAGS}
+              />
             </motion.div>
           ) : mainView === 'project' ? (
             <motion.div 
@@ -802,21 +928,21 @@ export default function App() {
             >
               {/* Left Column: Input Panel */}
               <div className="space-y-6 lg:sticky lg:top-20 min-w-0">
-                <div className="card-enterprise p-4 md:p-5 space-y-4 border-zinc-200/50 dark:border-white/5 shadow-enterprise h-[60vh] md:h-[80vh] flex flex-col">
+                <div className="card-enterprise p-4 md:p-5 space-y-4 border-zinc-200/50 dark:border-white/5 shadow-enterprise h-auto min-h-[72vh] md:h-[80vh] flex flex-col">
                   {/* Settings Bar - Row 1: Configuration */}
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pb-2">
                      <div className="sm:col-span-2 space-y-2 group/field">
-                       <label className="text-[10px] md:text-xs font-black text-zinc-400 group-hover/field:text-emerald-500 uppercase tracking-widest block transition-colors">Snippet Title</label>
+                       <label className="text-xs md:text-xs font-black text-zinc-400 group-hover/field:text-emerald-500 uppercase tracking-widest block transition-colors">Snippet Title</label>
                         <input 
                           type="text"
                           value={projectName}
                           onChange={(e) => setProjectName(e.target.value)}
                           placeholder="New Analysis"
-                          className="input-enterprise w-full bg-zinc-50/50 dark:bg-black/20 border-zinc-200/50 dark:border-white/5 font-bold text-xs p-3 rounded-lg h-[42px] focus:border-emerald-500/50 transition-all outline-none"
+                          className="input-enterprise w-full bg-zinc-50/50 dark:bg-black/20 border-zinc-200/50 dark:border-white/5 font-bold text-sm md:text-xs p-3 rounded-lg h-11 md:h-[42px] focus:border-emerald-500/50 transition-all outline-none"
                         />
                      </div>
                      <div className="space-y-2">
-                        <label className="text-[10px] md:text-xs font-black text-zinc-400 uppercase tracking-widest block text-left">Language</label>
+                        <label className="text-xs md:text-xs font-black text-zinc-400 uppercase tracking-widest block text-left">Input Type</label>
                         <CustomDropdown 
                           value={language}
                           options={LANGUAGES}
@@ -824,7 +950,7 @@ export default function App() {
                         />
                      </div>
                      <div className="space-y-2">
-                        <label className="text-[10px] md:text-xs font-black text-zinc-400 uppercase tracking-widest block text-left">Output</label>
+                        <label className="text-xs md:text-xs font-black text-zinc-400 uppercase tracking-widest block text-left">Output</label>
                         <CustomDropdown 
                           value={outputLanguage}
                           options={OUTPUT_LANGUAGES}
@@ -834,39 +960,91 @@ export default function App() {
                   </div>
 
                   {/* Settings Bar - Row 2: Mode Selection */}
-                  <div className="flex items-center gap-3">
-                    <button className="h-[42px] px-6 rounded-xl bg-emerald-500 text-white font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <button className="h-11 md:h-[42px] px-6 rounded-xl bg-emerald-500 text-white font-black text-xs md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
                       <Code2 className="w-4 h-4" /> <span>Paste Code</span>
                     </button>
                     <div className="relative group/field">
                       <input
                         type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
+                        accept={FILE_UPLOAD_ACCEPT}
+                        onChange={handleFileUpload}
                         className="hidden"
-                        id="image-upload"
+                        id="asset-upload"
                       />
                       <button
-                        onClick={() => document.getElementById('image-upload')?.click()}
+                        onClick={() => document.getElementById('asset-upload')?.click()}
                         className={cn(
-                          "h-[42px] px-6 rounded-xl border border-zinc-200/50 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20 text-zinc-500 font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all hover:text-emerald-500 hover:border-emerald-500/30",
-                          selectedImage && "border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                          "h-11 md:h-[42px] w-full sm:w-auto px-6 rounded-xl border border-zinc-200/50 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20 text-zinc-500 font-black text-xs md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:text-emerald-500 hover:border-emerald-500/30",
+                          uploadedAsset && "border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
                         )}
                       >
-                        <ImageIcon className={cn("w-3.5 h-3.5", selectedImage ? "text-emerald-500" : "text-zinc-400")} />
-                        <span>{selectedImage ? "Image Added" : "Upload File"}</span>
+                        <ImageIcon className={cn("w-3.5 h-3.5", uploadedAsset ? "text-emerald-500" : "text-zinc-400")} />
+                        <span>{uploadedAsset ? "Replace Upload" : "Upload File"}</span>
                       </button>
                     </div>
                   </div>
                   {imageUploadError && (
-                    <div className="text-[11px] font-bold text-red-500 dark:text-red-400 mt-1">
+                    <div className="text-xs font-bold text-red-500 dark:text-red-400 mt-1">
                       {imageUploadError}
+                    </div>
+                  )}
+                  {uploadedAsset && (
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3 md:p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs md:text-sm font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-400 truncate">
+                            {uploadedAsset.name}
+                          </p>
+                          <p className="text-[11px] md:text-xs text-zinc-500 font-semibold uppercase tracking-wide mt-1">
+                            {uploadedAsset.extension.toUpperCase()} • {formatFileSize(uploadedAsset.size)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedImage(null);
+                            setIsUploadViewerOpen(false);
+                            setUploadedAsset((prev) => {
+                              if (prev) URL.revokeObjectURL(prev.objectUrl);
+                              return null;
+                            });
+                            setImageUploadError('');
+                          }}
+                          className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors shrink-0"
+                          aria-label="Remove uploaded file"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          onClick={() => {
+                            if (uploadedAsset.canInlinePreview) {
+                              setIsUploadViewerOpen(true);
+                              return;
+                            }
+                            window.open(uploadedAsset.objectUrl, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="flex-1 h-10 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          {uploadedAsset.canInlinePreview ? 'View Upload' : 'Open File'}
+                        </button>
+                        <a
+                          href={uploadedAsset.objectUrl}
+                          download={uploadedAsset.name}
+                          className="flex-1 h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:border-emerald-500/40 hover:text-emerald-500 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download
+                        </a>
+                      </div>
                     </div>
                   )}
 
                   {/* Code textarea Container (MVP Mode) with Mac Header */}
                   <div 
-                    className="flex-1 rounded-[1.5rem] overflow-hidden border border-zinc-200/50 dark:border-white/10 relative mt-4 bg-white dark:bg-[#0b0c10] flex flex-col shadow-lg"
+                    className="min-h-[220px] md:min-h-0 md:flex-1 rounded-[1.5rem] overflow-hidden border border-zinc-200/50 dark:border-white/10 relative mt-4 bg-white dark:bg-[#0b0c10] flex flex-col shadow-lg"
                     onDrop={onDrop}
                     onDragOver={onDragOver}
                     onDragLeave={() => setIsDragging(false)}
@@ -894,8 +1072,8 @@ export default function App() {
                           {isDragging && (
                             <div className="absolute inset-0 z-50 bg-emerald-500/10 backdrop-blur-sm border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center p-8 text-emerald-500 animate-in fade-in zoom-in duration-200">
                               <ImageIcon className="w-16 h-16 mb-4 animate-bounce" />
-                              <p className="text-xl font-black uppercase tracking-widest text-center italic">Drop screenshot here</p>
-                              <p className="text-xs font-bold uppercase tracking-widest mt-2 opacity-60">AI will analyze it instantly</p>
+                              <p className="text-xl font-black uppercase tracking-widest text-center italic">Drop image or file here</p>
+                              <p className="text-xs font-bold uppercase tracking-widest mt-2 opacity-60">PNG, JPG, PDF, DOC, JSON, ZIP, 7Z</p>
                             </div>
                           )}
                           
@@ -959,11 +1137,16 @@ export default function App() {
                   className="card-enterprise h-[60vh] md:h-[80vh] flex flex-col border-zinc-200/50 dark:border-white/5 relative overflow-hidden bg-white dark:bg-zinc-950/50"
                 >
                   <div className="p-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center justify-between shrink-0 bg-zinc-50 dark:bg-zinc-900/50">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shadow-sm shadow-blue-500/50" />
-                      <span className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest">
+                      <span className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest truncate">
                         {currentProject?.scope ? `${currentProject.scope} Output` : 'AI Explanation Output'}
                       </span>
+                      {(explanationResult || loading) && (
+                        <span className="badge badge-zinc shrink-0 normal-case tracking-normal text-[10px]">
+                          Input: {lastInputLanguage}{isAutoDetectedLanguage ? ' (auto)' : ''}
+                        </span>
+                      )}
                     </div>
                     {explanationResult && (
                        <button 
@@ -1029,7 +1212,7 @@ export default function App() {
                     ) : explanationResult ? (
                       <div className={cn(
                         "prose prose-zinc dark:prose-invert max-w-none prose-headings:font-black prose-headings:tracking-tight prose-h2:text-emerald-500 prose-h2:border-b-2 prose-h2:border-emerald-500/20 prose-h2:pb-2 prose-h2:mb-6 prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-p:leading-relaxed prose-p:font-medium text-[14px] md:text-[15px] prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800 prose-pre:rounded-xl prose-pre:shadow-md prose-pre:text-sm prose-pre:overflow-x-auto prose-code:text-emerald-600 dark:prose-code:text-emerald-400 prose-code:font-bold prose-code:bg-emerald-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-strong:text-zinc-900 dark:prose-strong:text-white prose-strong:font-black prose-li:text-zinc-700 dark:prose-li:text-zinc-300 prose-li:font-medium",
-                        isKhmerOutput && "khmer-text"
+                        isKhmerOutput && "khmer-text khmer-prose"
                       )}>
                         <Markdown
                           components={{
@@ -1145,22 +1328,22 @@ export default function App() {
                   <p className="text-zinc-500 text-sm font-medium">Start explaining code to build your history locally.</p>
                 </div>
               ) : (
-                <div className="grid gap-4">
+                <div className="grid gap-3">
                   {projects.map((project) => (
                     <div 
                       key={project.id}
                       onClick={() => selectProject(project)}
-                      className="card-enterprise p-4 sm:p-6 cursor-pointer group hover:border-emerald-500/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="card-enterprise p-3.5 sm:p-4 cursor-pointer group hover:border-emerald-500/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
-                      <div className="flex items-center gap-4 sm:gap-6">
-                        <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-emerald-500/10 transition-colors shrink-0">
-                          <Code2 className="w-6 h-6 text-zinc-400 group-hover:text-emerald-500 transition-colors" />
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-emerald-500/10 transition-colors shrink-0">
+                          <Code2 className="w-5 h-5 text-zinc-400 group-hover:text-emerald-500 transition-colors" />
                         </div>
                         <div className="space-y-1">
-                          <h3 className="font-black text-lg text-zinc-900 dark:text-white uppercase tracking-tight group-hover:text-emerald-500 transition-colors">
+                          <h3 className="font-black text-base sm:text-lg text-zinc-900 dark:text-white uppercase tracking-tight group-hover:text-emerald-500 transition-colors">
                             {project.name}
                           </h3>
-                          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest text-zinc-500 mt-2">
+                          <div className="flex flex-wrap items-center gap-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-500 mt-1.5">
                             <span className="flex items-center gap-1.5"><Box className="w-3.5 h-3.5" /> Code: {project.language || 'Unknown'}</span>
                             <span className="flex items-center gap-1.5 text-blue-500"><Terminal className="w-3.5 h-3.5" /> Action: {project.scope || 'Explain'}</span>
                             <span className="flex items-center gap-1.5"><Globe2 className="w-3.5 h-3.5" /> Output: {project.outputLanguage || 'English'}</span>
@@ -1170,14 +1353,14 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 justify-end sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2 justify-end sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={(e) => handleDeleteProject(e, project.id!)}
-                          className="p-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                          className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                        <ChevronRight className="w-6 h-6 text-zinc-400 hidden sm:block" />
+                        <ChevronRight className="w-5 h-5 text-zinc-400 hidden sm:block" />
                       </div>
                     </div>
                   ))}
@@ -1193,14 +1376,18 @@ export default function App() {
               className="max-w-3xl mx-auto space-y-8"
             >
               <div>
-                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">Global <span className="text-emerald-500">Settings</span></h2>
-                <p className="text-zinc-500 text-xs md:text-sm font-bold uppercase tracking-widest mt-1">Configure your Code Clarity AI experience</p>
+                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
+                  Global <span className="text-emerald-500">Settings</span>
+                </h2>
+                <p className="text-zinc-500 text-xs md:text-sm font-bold uppercase tracking-widest mt-2">
+                  Configure your Code Clarity AI experience
+                </p>
               </div>
 
-              <div className="card-enterprise p-6 md:p-10 space-y-8">
+              <div className="card-enterprise p-4 md:p-6 space-y-4">
                  
                  {/* Theme Settings */}
-                 <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/40 p-4 md:p-5">
                     <div>
                        <h3 className="text-base md:text-lg font-black uppercase text-zinc-900 dark:text-white flex items-center gap-2"><Sun className="w-5 h-5 text-zinc-400" /> Appearance Theme</h3>
                        <p className="text-[10px] md:text-xs font-bold text-zinc-500 mt-2 leading-relaxed max-w-sm">Toggle between light or dark mode globally. The theme applies instantly and is saved to your browser securely.</p>
@@ -1214,40 +1401,8 @@ export default function App() {
                     </button>
                  </div>
                  
-                 {/* Default Code Language Setting */}
-                 <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
-                    <div>
-                       <h3 className="text-base md:text-lg font-black uppercase text-zinc-900 dark:text-white flex items-center gap-2"><Code2 className="w-5 h-5 text-emerald-500" /> Default Code Language</h3>
-                       <p className="text-[10px] md:text-xs font-bold text-zinc-500 mt-2 leading-relaxed max-w-sm">Select the programming language you use most often. New snippets will default to this language automatically.</p>
-                    </div>
-                    <div className="w-full md:w-64">
-                       <CustomDropdown 
-                          value={language}
-                          options={LANGUAGES}
-                          onChange={(val) => setLanguage(val)}
-                          icon={FileCode}
-                       />
-                    </div>
-                 </div>
-
-                 {/* Default Output Language Setting */}
-                 <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
-                    <div>
-                       <h3 className="text-base md:text-lg font-black uppercase text-zinc-900 dark:text-white flex items-center gap-2"><Globe2 className="w-5 h-5 text-blue-500" /> Default Output Language</h3>
-                       <p className="text-[10px] md:text-xs font-bold text-zinc-500 mt-2 leading-relaxed max-w-sm">Select your preferred human language for the AI Explanation output. Your responses will always be generated in this language.</p>
-                    </div>
-                    <div className="w-full md:w-64">
-                       <CustomDropdown 
-                          value={outputLanguage}
-                          options={OUTPUT_LANGUAGES}
-                          onChange={(val) => setOutputLanguage(val)}
-                          icon={Globe2}
-                       />
-                    </div>
-                 </div>
-
                  {/* Application Info */}
-                 <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-zinc-200 dark:border-zinc-800 gap-4">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/40 p-4 md:p-5">
                     <div>
                        <h3 className="text-base md:text-lg font-black uppercase text-zinc-900 dark:text-white flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-purple-500" /> Application Version</h3>
                        <p className="text-[10px] md:text-xs font-bold text-zinc-500 mt-2 leading-relaxed max-w-sm">Current software build deployed on system architecture strictly conforming to Project Requirements.</p>
@@ -1260,7 +1415,7 @@ export default function App() {
                  </div>
 
                  {/* Data Control */}
-                 <div className="flex flex-col md:flex-row md:items-center justify-between pt-2 gap-4">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-red-500/20 bg-red-500/[0.03] p-4 md:p-5">
                     <div>
                        <h3 className="text-base md:text-lg font-black uppercase text-red-500 flex items-center gap-2"><Trash className="w-5 h-5" /> Danger Zone</h3>
                        <p className="text-[10px] md:text-xs font-bold text-zinc-500 mt-2 leading-relaxed max-w-sm">Permanently delete all your local history. This action cannot be reversed and all saved snippets will be lost.</p>
@@ -1282,7 +1437,65 @@ export default function App() {
         </AnimatePresence>
       </main>
       
-      {/* Footer reduced height and updated font */}
+      {isUploadViewerOpen && uploadedAsset && (
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 md:p-6">
+          <div className="w-full max-w-5xl max-h-[92vh] bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black uppercase tracking-wide text-zinc-900 dark:text-white truncate">{uploadedAsset.name}</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wide">{uploadedAsset.extension.toUpperCase()} • {formatFileSize(uploadedAsset.size)}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {!uploadedAsset.canInlinePreview && (
+                  <a
+                    href={uploadedAsset.objectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 px-3 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-emerald-500 hover:border-emerald-500/40 text-xs font-black uppercase tracking-wide inline-flex items-center gap-2"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open
+                  </a>
+                )}
+                <button
+                  onClick={() => setIsUploadViewerOpen(false)}
+                  className="h-9 px-3 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-black uppercase tracking-wide inline-flex items-center gap-2"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-[280px] p-3 md:p-5 overflow-auto custom-scrollbar bg-zinc-50 dark:bg-zinc-950">
+              {uploadedAsset.kind === 'image' ? (
+                <img src={uploadedAsset.objectUrl} alt={uploadedAsset.name} className="w-full h-auto max-h-[75vh] object-contain rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900" />
+              ) : uploadedAsset.extension === 'pdf' ? (
+                <iframe src={uploadedAsset.objectUrl} title={uploadedAsset.name} className="w-full h-[75vh] rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white" />
+              ) : uploadedAsset.extension === 'json' ? (
+                <pre className="text-xs md:text-sm leading-relaxed p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap break-words">
+                  {uploadedAsset.textPreview || 'No preview available for this JSON file.'}
+                </pre>
+              ) : (
+                <div className="h-full min-h-[280px] flex flex-col items-center justify-center gap-3 text-center">
+                  <FileText className="w-10 h-10 text-zinc-400" />
+                  <p className="text-sm font-bold text-zinc-500">Inline preview is not available for this file type.</p>
+                  <a
+                    href={uploadedAsset.objectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-10 px-4 rounded-lg bg-emerald-500 text-white text-xs font-black uppercase tracking-wide inline-flex items-center gap-2"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open in New Tab
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
       <footer className="border-t border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md relative z-10 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 md:py-6 flex flex-col md:flex-row items-center content-center justify-between gap-4">
           <div className="flex items-center gap-2">

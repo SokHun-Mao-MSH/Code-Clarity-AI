@@ -4,9 +4,14 @@ import { Sparkles, Zap, ArrowRight } from 'lucide-react';
 
 interface HeroProps {
   setMainView: (view: any) => void;
+  coreLanguages: string[];
+  frameworkTags: string[];
+  platformTags: string[];
 }
 
-const Hero: React.FC<HeroProps> = ({ setMainView }) => {
+const Hero: React.FC<HeroProps> = ({ setMainView, coreLanguages, frameworkTags, platformTags }) => {
+  const totalSupported = coreLanguages.length + frameworkTags.length + platformTags.length;
+
   return (
     <div className="text-center space-y-8 max-w-3xl mx-auto">
       <motion.div
@@ -30,6 +35,22 @@ const Hero: React.FC<HeroProps> = ({ setMainView }) => {
         <p className="text-lg md:text-2xl text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-2xl mx-auto z-10 relative">
           Paste your code below and let our intelligent AI explain it line-by-line, debug issues, or refactor it into clean, best-practice syntax.
         </p>
+      </div>
+      <div className="space-y-3">
+        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
+          Supports {totalSupported} input options
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+            Languages ({coreLanguages.length})
+          </span>
+          <span className="inline-flex items-center rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+            Framework Tags ({frameworkTags.length})
+          </span>
+          <span className="inline-flex items-center rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">
+            Platform Tags ({platformTags.length})
+          </span>
+        </div>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-6 pt-2">
         <button 

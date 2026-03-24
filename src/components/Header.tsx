@@ -54,7 +54,7 @@ const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center: Desktop Nav */}
-        <nav className="hidden lg:flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
+        <nav className="hidden md:flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-full border border-zinc-200 dark:border-zinc-800">
           {[
             { id: 'home', label: 'Home', icon: Home },
             { id: 'project', label: 'Code Explainer', icon: Code2 },
@@ -64,13 +64,13 @@ const Header: React.FC<HeaderProps> = ({
               key={item.id}
               onClick={() => setMainView(item.id as any)}
               className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all",
+                "flex items-center gap-1.5 px-3 md:px-4 lg:px-5 py-1.5 md:py-2 rounded-full text-xs md:text-[13px] lg:text-sm font-black uppercase tracking-[0.1em] md:tracking-[0.12em] transition-all",
                 mainView === item.id 
-                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm" 
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm border border-zinc-200/70 dark:border-zinc-700/70" 
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-zinc-800/60"
               )}
             >
-              <item.icon className="w-4 h-4" />
+              <item.icon className="w-3 h-3 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4" />
               {item.label}
             </button>
           ))}
@@ -96,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({
           {/* Mobile Menu Toggle */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="lg:hidden p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="md:hidden p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>

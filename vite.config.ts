@@ -4,7 +4,7 @@ import path from 'path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: "/Code-Clarity-AI/",
+  base: "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
